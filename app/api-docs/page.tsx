@@ -1,0 +1,14 @@
+import dynamic from 'next/dynamic';
+import 'swagger-ui-react/swagger-ui.css';
+
+const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false });
+
+export default function ApiDocs() {
+    return (
+        <div className="bg-white min-h-screen">
+            <div className="py-8">
+                <SwaggerUI url="/api/swagger" />
+            </div>
+        </div>
+    );
+}

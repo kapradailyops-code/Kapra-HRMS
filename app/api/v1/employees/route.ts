@@ -24,6 +24,43 @@ function checkRateLimit(token: string): boolean {
 }
 
 
+/**
+ * @swagger
+ * /api/v1/employees:
+ *   get:
+ *     summary: Retrieve a list of employees
+ *     description: Returns a sanitized list of employees. Highly sensitive details like salaries are omitted.
+ *     tags:
+ *       - Developer API
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: departmentId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Optional ID to filter employees by department.
+ *     responses:
+ *       200:
+ *         description: A summarized list of existing employees.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                   example: 10
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Employee'
+ *       401:
+ *         description: Unauthorized. Missing or invalid Bearer token.
+ *       429:
+ *         description: Rate Limit Exceeded. Default is 60 requests per minute.
+ */
 // GET /api/v1/employees - Fetch employee directory via API token
 export async function GET(request: Request) {
     try {

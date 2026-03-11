@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.next
+.git
+.vscode
+.env
+.env*.local
+*.md
+jest.config.ts
+jest.setup.ts
+__tests__
+__mocks__

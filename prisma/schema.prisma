@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Main internal application user
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  role          String    @default("EMPLOYEE")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  employee      Employee?
+  auditLogs     AuditLog[]
+  leaveApprovals LeaveRequest[] @relation("LeaveApprover")
+}
+
+// Comprehensive employee profile
+model Employee {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  employeeId     String    @unique // Company generated ID
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime?
+  gender         String?
+  contactNumber  String?
+  address        String?
+  
+  // Employment Details
+  hireDate       DateTime
+  status         String    @default("ACTIVE") // ACTIVE, ON_LEAVE, TERMINATED
+  jobTitle       String?
+  employmentType String?   // FULL_TIME, PART_TIME, CONTRACT
+  workLocation   String?
+  
+  // Organization Relations
+  departmentId   String?
+  managerId      String?
+  
+  // Relations
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department     Organization? @relation(fields: [departmentId], references: [id])
+  manager        Employee?  @relation("EmployeeToManager", fields: [managerId], references: [id])
+  subordinates   Employee[] @relation("EmployeeToManager")
+  documents      Document[]
+  leaveBalances  LeaveBalance[]
+  leaveRequests  LeaveRequest[]
+  attendanceRecords AttendanceRecord[]
+  goals          Goal[]
+  reviewsReceived PerformanceReview[] @relation("Reviewee")
+  reviewsGiven   PerformanceReview[] @relation("Reviewer")
+  payrollRecords PayrollRecord[]
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// Organization hierarchy (Departments, Teams)
+model Organization {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  parentId    String?
+  
+  // Relations
+  parent      Organization?  @relation("OrgHierarchy", fields: [parentId], references: [id])
+  children    Organization[] @relation("OrgHierarchy")
+  employees   Employee[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Employee Documents
+model Document {
+  id           String   @id @default(cuid())
+  employeeId   String
+  title        String
+  documentUrl  String
+  documentType String   // CONTRACT, ID, CERTIFICATION
+  uploadedAt   DateTime @default(now())
+  
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// Leave Policies Engine
+model LeaveType {
+  id                    String   @id @default(cuid())
+  name                  String   @unique // e.g., "Annual Leave", "Sick Leave"
+  description           String?
+  accrualRate           Float    // e.g., 1.5
+  accrualPeriod         String   // e.g., "MONTHLY", "YEARLY"
+  requiresApproval      Boolean  @default(true)
+  maxCarryOver          Float    @default(0)
+  carryOverExpiryMonths Int?
+  probationPeriodMonths Int      @default(0)
+  isProrated            Boolean  @default(true)
+  
+  balances              LeaveBalance[]
+  requests              LeaveRequest[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// Leave balances per employee
+model LeaveBalance {
+  id               String    @id @default(cuid())
+  employeeId       String
+  leaveTypeId      String
+  balance          Float     @default(0)
+  carryOverBalance Float     @default(0)
+  lastAccrual      DateTime?
+  
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  
+  @@unique([employeeId, leaveTypeId])
+}
+
+// Leave requests
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  employeeId   String
+  leaveTypeId  String
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  approverId   String?
+  
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  approver     User?     @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Daily attendance
+model AttendanceRecord {
+  id          String    @id @default(cuid())
+  employeeId  String
+  date        DateTime
+  clockIn     DateTime
+  clockOut    DateTime?
+  status      String    @default("PRESENT") // PRESENT, LATE, HALF_DAY
+  notes       String?
+  
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([employeeId, date])
+}
+
+// Audit trail for critical actions
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String   // e.g., "CREATE_USER", "UPDATE_LEAVE"
+  entityType  String   // e.g., "Employee", "LeaveRequest"
+  entityId    String
+  details     String?  // JSON stringified details of the change
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// Performance Management - Goals
+model Goal {
+  id          String   @id @default(cuid())
+  employeeId  String
+  title       String
+  description String?
+  dueDate     DateTime
+  status      String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, CANCELLED
+  
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Performance Management - Reviews
+model PerformanceReview {
+  id          String   @id @default(cuid())
+  revieweeId  String
+  reviewerId  String
+  period      String   // e.g. "Q1 2026", "2025 Annual"
+  rating      Int?     // e.g. 1-5
+  comments    String?
+  status      String   @default("DRAFT") // DRAFT, SUBMITTED, ACKNOWLEDGED
+  
+  reviewee    Employee @relation("Reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+  reviewer    Employee @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([revieweeId, period])
+}
+
+// Payroll
+model PayrollRecord {
+  id           String   @id @default(cuid())
+  employeeId   String
+  period       String   // e.g. "March 2026"
+  basicSalary  Float
+  deductions   Float    @default(0)
+  netPay       Float
+  status       String   @default("DRAFT") // DRAFT, PROCESSED, PAID
+  notes        String?
+  
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([employeeId, period])
+}
+
+
+// HR Policy Documents Hub
+model HRPolicy {
+  id            String    @id @default(cuid())
+  title         String
+  category      String
+  content       String
+  summary       String?
+  isPublished   Boolean   @default(false)
+  version       String?
+  effectiveDate DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Developer API Access Tokens
+model ApiToken {
+  id        String    @id @default(cuid())
+  name      String
+  token     String    @unique
+  scopes    String    @default("read:employees") // Default scope
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+}

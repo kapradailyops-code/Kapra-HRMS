@@ -1,8 +1,9 @@
+﻿export const dynamic = 'force-dynamic';
 import { prisma } from "../../../lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "../../../auth";
 
-// GET /api/reviews – get reviews (for the current user or their reports)
+// GET /api/reviews â€“ get reviews (for the current user or their reports)
 export async function GET(request: Request) {
     try {
         const session = await auth();
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST /api/reviews – create or submit a review (for managers)
+// POST /api/reviews â€“ create or submit a review (for managers)
 export async function POST(request: Request) {
     try {
         const session = await auth();
@@ -92,3 +93,4 @@ export async function POST(request: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+

@@ -1,8 +1,9 @@
+﻿export const dynamic = 'force-dynamic';
 import { prisma } from "../../../lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "../../../auth";
 
-// GET /api/payroll — returns own payslips (or all if admin with ?employeeId)
+// GET /api/payroll â€” returns own payslips (or all if admin with ?employeeId)
 export async function GET(request: Request) {
     try {
         const session = await auth();
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST /api/payroll — admin creates a payroll record for an employee
+// POST /api/payroll â€” admin creates a payroll record for an employee
 export async function POST(request: Request) {
     try {
         const session = await auth();
@@ -74,3 +75,4 @@ export async function POST(request: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+

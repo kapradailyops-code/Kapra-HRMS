@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getApiDocs } from '../../../lib/swagger';
 import { NextResponse } from 'next/server';
 
@@ -10,3 +11,4 @@ export async function GET() {
         return new NextResponse("Internal server error", { status: 500 });
     }
 }
+

@@ -1,9 +1,10 @@
+﻿export const dynamic = 'force-dynamic';
 import { prisma } from "../../../lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "../../../auth";
 import { sendGoalAssignedEmail } from "../../../lib/email";
 
-// GET /api/goals – returns goals for the current employee (or all for admin)
+// GET /api/goals â€“ returns goals for the current employee (or all for admin)
 export async function GET(request: Request) {
     try {
         const session = await auth();
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST /api/goals – create a new goal
+// POST /api/goals â€“ create a new goal
 export async function POST(request: Request) {
     try {
         const session = await auth();
@@ -84,3 +85,4 @@ export async function POST(request: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+

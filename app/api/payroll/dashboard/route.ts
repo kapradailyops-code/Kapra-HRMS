@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { prisma } from "../../../../lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "../../../../auth";
@@ -177,3 +178,4 @@ async function fetchEmployeePayrollData(employeeId: string | undefined, minStart
          attendance: formattedAttendance
     };
 }
+

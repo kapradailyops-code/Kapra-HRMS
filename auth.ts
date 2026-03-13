@@ -17,13 +17,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log("AUTHORIZE_STARTED:", credentials?.email);
         if (!credentials?.email || !credentials?.password) {
+          console.log("AUTHORIZE_FAILED: Missing credentials");
           return null;
         }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string }
         });
+
+        console.log("AUTHORIZE_USER_FOUND:", user ? "YES" : "NO");
 
         if (!user || !user.passwordHash) {
           return null;
@@ -33,6 +37,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           credentials.password as string,
           user.passwordHash
         );
+
+        console.log("AUTHORIZE_PASSWORD_VALID:", isPasswordValid);
 
         if (!isPasswordValid) {
           return null;

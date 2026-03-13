@@ -10,6 +10,7 @@ export async function authenticate(
   try {
     await signIn('credentials', Object.fromEntries(formData))
   } catch (error) {
+    console.error("AUTH_ACTION_ERROR:", error);
     if (error instanceof AuthError) {
       switch (error.type) {
         case 'CredentialsSignin':

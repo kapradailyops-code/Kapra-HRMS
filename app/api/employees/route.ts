@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { prisma } from "../../../lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "../../../auth";
@@ -14,9 +14,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
 
-    // Optimization: Check Redis Cache First
+    // Optimization: Check Redis Cache First (only if Redis is configured)
     const cacheKey = `employees:directory:${search || 'all'}`;
-    const cachedData = await redis.get(cacheKey);
+    const cachedData = redis ? await redis.get(cacheKey) : null;
 
     if (cachedData) {
       return NextResponse.json(JSON.parse(cachedData));
@@ -38,8 +38,8 @@ export async function GET(request: Request) {
       orderBy: { firstName: "asc" },
     });
 
-    // Store in Redis (Expire in 60 seconds)
-    await redis.set(cacheKey, JSON.stringify(employees), 'EX', 60);
+    // Store in Redis (Expire in 60 seconds) — only if Redis is configured
+    if (redis) await redis.set(cacheKey, JSON.stringify(employees), 'EX', 60);
 
     return NextResponse.json(employees);
   } catch (error) {
@@ -107,8 +107,8 @@ export async function POST(request: Request) {
       }
     });
 
-    // Invalidate Cache after mutation
-    await redis.del('employees:directory:all');
+    // Invalidate Cache after mutation — only if Redis is configured
+    if (redis) await redis.del('employees:directory:all');
 
     return NextResponse.json(newEmployee.employee);
   } catch (error) {

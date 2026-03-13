@@ -1,10 +1,13 @@
 {
   "name": "hrms-app",
   "version": "0.1.0",
+  "prisma": {
+    "seed": "ts-node --compilerOptions {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
@@ -13,6 +16,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^5.11.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "ioredis": "^5.10.0",
@@ -50,8 +54,5 @@
     "ts-node": "^10.9.2",
     "typescript": "^5",
     "uuid": "^13.0.0"
-  },
-  "prisma": {
-    "seed": "ts-node --compilerOptions {\"module\":\"CommonJS\"} prisma/seed.ts"
   }
 }

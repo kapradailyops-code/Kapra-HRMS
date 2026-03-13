@@ -1,140 +1,117 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { computePayroll, SalarySlipModal, AttendanceCalendar, fmt, MONTH_NAMES } from "./shared";
 
-const STATUS_STYLES: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-600",
-    PROCESSED: "bg-blue-100 text-blue-700",
-    PAID: "bg-green-100 text-green-700",
-};
+export default function EmployeePayrollView() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewSlip, setViewSlip] = useState<{ slip: any, emp: any } | null>(null);
+  const [tab, setTab] = useState("salary");
 
-export default function PayslipPage() {
-    const [records, setRecords] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState<any | null>(null);
+  useEffect(() => {
+     fetch("/api/payroll/dashboard")
+        .then(r => r.json())
+        .then(d => {
+             if (d.employees && d.employees.length > 0) {
+                 setData(d.employees[0]);
+             }
+             setLoading(false);
+        })
+        .catch(e => {
+             console.error(e);
+             setLoading(false);
+        });
+  }, []);
 
-    useEffect(() => {
-        fetch("/api/payroll")
-            .then(r => r.json())
-            .then(d => { setRecords(Array.isArray(d) ? d : []); setLoading(false); })
-            .catch(() => setLoading(false));
-    }, []);
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500 animate-pulse">Loading payroll data...</div>;
+  }
 
-    if (loading) {
-        return (
-            <div className="max-w-4xl mx-auto space-y-4">
-                <div className="h-8 w-40 bg-gray-200 animate-pulse rounded-lg"></div>
-                {[1, 2, 3].map(i => <div key={i} className="h-20 bg-gray-100 animate-pulse rounded-2xl"></div>)}
-            </div>
-        );
-    }
+  if (!data) {
+    return <div className="p-8 text-center text-gray-500">Failed to load payroll data.</div>;
+  }
 
-    return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Payslips</h1>
-                <p className="mt-1 text-sm text-gray-500">View your monthly salary statements.</p>
-            </div>
+  const emp = { id: data.employeeId, name: data.name, department: data.department, grossSalary: data.grossSalary };
+  const payrolls = data.attendance.map((m: any) => computePayroll(emp, m, data.leaveBalances));
 
-            {records.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 flex flex-col items-center text-center">
-                    <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="font-semibold text-gray-700">No payslips yet</p>
-                    <p className="text-sm text-gray-400 mt-1">Your payslips will appear here once processed by HR.</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {records.map((rec) => (
-                        <div
-                            key={rec.id}
-                            onClick={() => setSelected(rec)}
-                            className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 cursor-pointer hover:border-blue-200 hover:bg-blue-50/20 transition-all group"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="h-11 w-11 min-w-[44px] rounded-xl bg-indigo-100 flex items-center justify-center">
-                                    <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p className="font-bold text-gray-900">{rec.period}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">Generated on {format(new Date(rec.createdAt), 'MMM d, yyyy')}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <div className="text-right">
-                                    <p className="text-xs text-gray-400 uppercase tracking-wider">Net Pay</p>
-                                    <p className="text-lg font-extrabold text-gray-900 tabular-nums">₹{rec.netPay.toLocaleString('en-IN')}</p>
-                                </div>
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${STATUS_STYLES[rec.status] || 'bg-gray-100 text-gray-600'}`}>
-                                    {rec.status}
-                                </span>
-                                <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Payslip Detail Modal */}
-            {selected && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        {/* Slip Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-6 text-white">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-blue-200 text-xs uppercase tracking-widest font-semibold">Salary Slip</p>
-                                    <h2 className="text-2xl font-extrabold mt-1">{selected.period}</h2>
-                                </div>
-                                <button onClick={() => setSelected(null)} className="text-blue-200 hover:text-white transition-colors">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-                            <p className="text-blue-200 text-sm mt-2">Kapra HRMS</p>
-                        </div>
-
-                        {/* Earnings + Deductions */}
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Earnings</p>
-                                <div className="flex justify-between py-2.5 border-b border-gray-100">
-                                    <span className="text-sm text-gray-600">Basic Salary</span>
-                                    <span className="text-sm font-semibold text-gray-900 tabular-nums">₹{selected.basicSalary.toLocaleString('en-IN')}</span>
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Deductions</p>
-                                <div className="flex justify-between py-2.5 border-b border-gray-100">
-                                    <span className="text-sm text-gray-600">Total Deductions</span>
-                                    <span className="text-sm font-semibold text-red-600 tabular-nums">- ₹{selected.deductions.toLocaleString('en-IN')}</span>
-                                </div>
-                            </div>
-                            {selected.notes && (
-                                <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600 border border-gray-100 italic">
-                                    {selected.notes}
-                                </div>
-                            )}
-                            {/* Net Pay */}
-                            <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-4 py-4 flex justify-between items-center">
-                                <span className="text-sm font-bold text-green-800 uppercase tracking-wide">Net Pay</span>
-                                <span className="text-2xl font-extrabold text-green-700 tabular-nums">₹{selected.netPay.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${STATUS_STYLES[selected.status] || 'bg-gray-100 text-gray-600'}`}>
-                                    {selected.status}
-                                </span>
-                                <p className="text-xs text-gray-400">Issued {format(new Date(selected.createdAt), 'MMMM d, yyyy')}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+  return (
+    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",background:"#fff",minHeight:"100vh",padding:24,maxWidth:1100,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.14em",color:"#94a3b8"}}>HRMS PLATFORM</div>
+          <div style={{fontSize:26,fontWeight:800,color:"#0f172a",marginTop:2}}>My Payroll</div>
         </div>
-    );
+      </div>
+
+      <div style={{background:"#0f172a",borderRadius:14,padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.12em",color:"#475569"}}>MY ACCOUNT</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#fff",marginTop:2}}>{emp.name}</div>
+          <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>{emp.department} · {emp.id}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",color:"#475569"}}>GROSS SALARY</div>
+          <div style={{fontSize:24,fontWeight:800,color:"#60a5fa"}}>{fmt(emp.grossSalary)}</div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap"}}>
+        {Object.entries(data.leaveBalances).map(([t,v])=>(
+          <div key={t} style={{flex:1, minWidth:120, background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px",textAlign:"center"}}>
+            <div style={{fontSize:28,fontWeight:800,color:"#0f172a"}}>{v as number}</div>
+            <div style={{fontSize:11,color:"#94a3b8",fontWeight:700,marginTop:2}}>{t} Balance</div>
+          </div>
+        ))}
+        <div style={{flex:1, minWidth:120, background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,padding:"14px",textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:800,color:"#ef4444"}}>{payrolls.length > 0 ? payrolls[0].lop : 0}</div>
+          <div style={{fontSize:11,color:"#ef4444",fontWeight:700,marginTop:2}}>LOP This Month</div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:6,marginBottom:20}}>
+        {[["salary","Salary Slips"],["attendance","Attendance"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{
+            padding:"8px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,
+            background:tab===k?"#0f172a":"#f1f5f9", color:tab===k?"#fff":"#475569"
+          }}>{l}</button>
+        ))}
+      </div>
+
+      {tab==="salary" && (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {payrolls.map((slip: any,i: number)=>(
+            <div key={i} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:16}}>{MONTH_NAMES[slip.month]} {slip.year}</div>
+                <div style={{fontSize:12,color:"#64748b",marginTop:4}}>
+                  Paid days: {slip.paidDays}/{slip.totalWorkdays}
+                  {slip.lop>0&&<span style={{color:"#ef4444",fontWeight:700}}> · LOP: {slip.lop} days</span>}
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <div style={{textAlign:"right"}}>
+                  {slip.lop>0&&<div style={{fontSize:12,color:"#ef4444",fontWeight:600}}>− {fmt(slip.lopDeduction)} LOP</div>}
+                  <div style={{fontSize:20,fontWeight:800,color:"#0f172a"}}>{fmt(slip.netPay)}</div>
+                </div>
+                <button onClick={()=>setViewSlip({slip,emp})} style={{padding:"9px 16px",borderRadius:8,border:"none",background:"#0f172a",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                  Download
+                </button>
+              </div>
+            </div>
+          ))}
+          {payrolls.length === 0 && <div className="text-gray-500 text-sm py-4">No recent payroll slips generated.</div>}
+        </div>
+      )}
+
+      {tab==="attendance" && (
+        <div style={{background:"#f8fafc",borderRadius:12,padding:20,border:"1px solid #e2e8f0"}}>
+          <div className="mb-4 text-sm text-gray-500">Note: Absences without an approved leave request are marked as Absent/LOP.</div>
+          <AttendanceCalendar months={data.attendance}/>
+        </div>
+      )}
+
+      {viewSlip&&<SalarySlipModal slip={viewSlip.slip} employee={viewSlip.emp} onClose={()=>setViewSlip(null)}/>}
+    </div>
+  );
 }

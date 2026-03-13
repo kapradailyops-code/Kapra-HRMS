@@ -10,8 +10,9 @@ export default function LoginPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50">
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
           Kapra HRMS
         </h2>
@@ -20,8 +21,8 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-sm border border-gray-100 sm:rounded-xl sm:px-10">
+      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white/70 backdrop-blur-xl py-8 px-4 shadow-2xl border border-white/60 sm:rounded-2xl sm:px-10">
           <form className="space-y-6" action={dispatch}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -85,7 +86,7 @@ export default function LoginPage() {
                 {isPending ? 'Signing in...' : 'Sign in'}
               </button>
             </div>
-            
+
             <div
               className="flex h-8 items-end space-x-1"
               aria-live="polite"

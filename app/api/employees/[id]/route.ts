@@ -93,3 +93,32 @@ export async function PATCH(
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+
+export async function DELETE(
+    request: Request,
+    { params }: any
+) {
+    try {
+        const session = await auth();
+        // Only allow Admins and HR to delete/terminate employees
+        if (!session || !['ADMIN', 'HR_ADMIN', 'HR_MANAGER'].includes(session.user?.role || '')) {
+            return new NextResponse("Unauthorized", { status: 401 });
+        }
+
+        const { id } = await params;
+
+        const employee = await prisma.employee.update({
+            where: {
+                id: id,
+            },
+            data: {
+                status: 'TERMINATED'
+            }
+        });
+
+        return NextResponse.json(employee);
+    } catch (error) {
+        console.error("[EMPLOYEE_DELETE]", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}

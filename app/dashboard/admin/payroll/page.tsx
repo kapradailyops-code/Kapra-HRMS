@@ -1,207 +1,177 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
-import { useToast } from "../../../components/ToastProvider";
+import { computePayroll, SalarySlipModal, AttendanceCalendar, fmt, MONTH_NAMES } from "../../payroll/shared";
 
-const STATUS_STYLES: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-600",
-    PROCESSED: "bg-blue-100 text-blue-700",
-    PAID: "bg-green-100 text-green-700",
-};
+export default function HRAdminPayrollView() {
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewSlip, setViewSlip] = useState<{ slip: any, emp: any } | null>(null);
 
-export default function AdminPayrollPage() {
-    const { showToast } = useToast();
-    const [records, setRecords] = useState<any[]>([]);
-    const [employees, setEmployees] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState("");
-    const [basicSalary, setBasicSalary] = useState("");
-    const [deductions, setDeductions] = useState("0");
+  useEffect(() => {
+     fetch("/api/payroll/dashboard")
+        .then(r => r.json())
+        .then(d => {
+             if (d.employees) {
+                 setEmployees(d.employees);
+             }
+             setLoading(false);
+        })
+        .catch(e => {
+             console.error(e);
+             setLoading(false);
+        });
+  }, []);
 
-    useEffect(() => {
-        fetchRecords();
-        fetch("/api/employees").then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
-    }, []);
+  const handleSalarySave = async (empDbId: string, newSalary: number) => {
+      try {
+          const res = await fetch(`/api/employees/${empDbId}/salary`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ grossSalary: newSalary })
+          });
+          if (res.ok) {
+              setEmployees(prev => prev.map(x => x.id === empDbId ? { ...x, grossSalary: newSalary } : x));
+          } else {
+              alert("Failed to update salary.");
+          }
+      } catch (err) {
+          console.error(err);
+          alert("Error updating salary.");
+      }
+      setEditing(null);
+  };
 
-    const fetchRecords = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/payroll");
-            const d = await res.json();
-            setRecords(Array.isArray(d) ? d : []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500 animate-pulse">Loading HR dashboard...</div>;
+  }
 
-    const netPay = parseFloat(basicSalary || "0") - parseFloat(deductions || "0");
+  const selectedData = selectedId ? employees.find(e => e.id === selectedId) : null;
+  const emp = selectedData ? { id: selectedData.employeeId, name: selectedData.name, department: selectedData.department, grossSalary: selectedData.grossSalary } : null;
+  const payrolls = selectedData ? selectedData.attendance.map((m: any) => computePayroll(emp, m, selectedData.leaveBalances)) : [];
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setSubmitting(true);
-        setError("");
-        const formData = new FormData(e.currentTarget);
-        const payload = {
-            employeeId: formData.get("employeeId"),
-            period: formData.get("period"),
-            basicSalary: parseFloat(formData.get("basicSalary") as string),
-            deductions: parseFloat(formData.get("deductions") as string || "0"),
-            notes: formData.get("notes"),
-            status: "PROCESSED"
-        };
-        try {
-            const res = await fetch("/api/payroll", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error(await res.text());
-            setShowModal(false);
-            setBasicSalary("");
-            setDeductions("0");
-            showToast('Payslip generated successfully!', 'success');
-            await fetchRecords();
-        } catch (err: any) {
-            setError(err.message);
-            showToast(err.message || 'Failed to generate payslip.', 'error');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="max-w-6xl mx-auto space-y-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payroll Management</h1>
-                    <p className="mt-1 text-sm text-gray-500">Generate and manage employee salary records.</p>
-                </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-blue-700 transition-colors"
-                >
-                    + Generate Payslip
-                </button>
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                    { label: "Total Records", value: records.length, color: "text-gray-900" },
-                    { label: "Processed", value: records.filter(r => r.status === 'PROCESSED').length, color: "text-blue-700" },
-                    { label: "Paid", value: records.filter(r => r.status === 'PAID').length, color: "text-green-700" },
-                    { label: "Total Payout", value: `₹${records.filter(r => r.status !== 'DRAFT').reduce((s, r) => s + r.netPay, 0).toLocaleString('en-IN')}`, color: "text-indigo-700" },
-                ].map(c => (
-                    <div key={c.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
-                        <p className={`text-2xl font-extrabold ${c.color}`}>{c.value}</p>
-                        <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider font-semibold">{c.label}</p>
-                    </div>
-                ))}
-            </div>
-
-            {/* Records Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {loading ? (
-                    <div className="p-8 text-center text-gray-400 animate-pulse">Loading records...</div>
-                ) : records.length === 0 ? (
-                    <div className="p-16 text-center flex flex-col items-center">
-                        <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                        <p className="font-semibold text-gray-700">No payslips generated yet</p>
-                        <p className="text-sm text-gray-400 mt-1">Click "+ Generate Payslip" to get started.</p>
-                    </div>
-                ) : (
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-100">
-                            <tr>
-                                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
-                                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Basic</th>
-                                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deductions</th>
-                                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Pay</th>
-                                <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {records.map((rec) => (
-                                <tr key={rec.id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <p className="font-semibold text-gray-900">{rec.employee?.firstName} {rec.employee?.lastName}</p>
-                                        <p className="text-xs text-gray-400">{rec.employee?.employeeId}</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-700 font-medium">{rec.period}</td>
-                                    <td className="px-6 py-4 text-right tabular-nums text-gray-700">₹{rec.basicSalary.toLocaleString('en-IN')}</td>
-                                    <td className="px-6 py-4 text-right tabular-nums text-red-600">- ₹{rec.deductions.toLocaleString('en-IN')}</td>
-                                    <td className="px-6 py-4 text-right tabular-nums font-bold text-gray-900">₹{rec.netPay.toLocaleString('en-IN')}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${STATUS_STYLES[rec.status] || 'bg-gray-100 text-gray-600'}`}>
-                                            {rec.status}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-
-            {/* Generate Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                            <h3 className="text-lg font-bold text-gray-900">Generate Payslip</h3>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Employee *</label>
-                                <select name="employeeId" required className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-sm">
-                                    <option value="">Select employee...</option>
-                                    {employees.map((e: any) => (
-                                        <option key={e.id} value={e.id}>{e.firstName} {e.lastName} ({e.employeeId})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Period *</label>
-                                <input name="period" required placeholder="e.g. March 2026" className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Basic Salary (₹) *</label>
-                                    <input name="basicSalary" type="number" required min={0} value={basicSalary} onChange={e => setBasicSalary(e.target.value)} placeholder="50000" className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Deductions (₹)</label>
-                                    <input name="deductions" type="number" min={0} value={deductions} onChange={e => setDeductions(e.target.value)} placeholder="0" className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" />
-                                </div>
-                            </div>
-                            {/* Live Net Pay preview */}
-                            {basicSalary && (
-                                <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex justify-between items-center">
-                                    <span className="text-sm font-semibold text-green-800">Net Pay</span>
-                                    <span className="text-xl font-extrabold text-green-700">₹{Math.max(0, netPay).toLocaleString('en-IN')}</span>
-                                </div>
-                            )}
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Notes (Optional)</label>
-                                <textarea name="notes" rows={2} className="block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm resize-none" placeholder="e.g. Includes performance bonus" />
-                            </div>
-                            <div className="pt-2 flex justify-end gap-3">
-                                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors">Cancel</button>
-                                <button type="submit" disabled={submitting} className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-50">
-                                    {submitting ? "Generating..." : "Generate Payslip"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+  return (
+    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",background:"#fff",minHeight:"100vh",padding:24,maxWidth:1200,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.14em",color:"#94a3b8"}}>HRMS PLATFORM</div>
+          <div style={{fontSize:26,fontWeight:800,color:"#0f172a",marginTop:2}}>Payroll Administration</div>
         </div>
-    );
+      </div>
+
+      <div style={{display:"flex",gap:24,minHeight:500,flexDirection:"row"}}>
+        {/* Sidebar */}
+        <div style={{width:290,flexShrink:0, height:"calc(100vh - 120px)", overflowY:"auto", paddingRight:8}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"#94a3b8",marginBottom:12,position:"sticky",top:0,background:"#fff",paddingBottom:8}}>EMPLOYEE DIRECTORY</div>
+          {employees.map(e=>(
+            <div key={e.id} onClick={()=>setSelectedId(e.id)} style={{
+              padding:"14px 16px",borderRadius:10,marginBottom:8,cursor:"pointer",
+              background: selectedId===e.id?"#0f172a":"#f8fafc",
+              color: selectedId===e.id?"#fff":"#1e293b",
+              border:`1px solid ${selectedId===e.id?"#0f172a":"#e2e8f0"}`,
+              transition:"all 0.1s"
+            }}>
+              <div style={{fontWeight:700,fontSize:14}}>{e.name}</div>
+              <div style={{fontSize:12,opacity:0.6,marginTop:2}}>{e.department} · {e.employeeId}</div>
+              <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8}} onClick={ev=>ev.stopPropagation()}>
+                {editing===e.id ? (
+                  <div style={{display:"flex",gap:6}}>
+                    <input value={editVal} onChange={ev=>setEditVal(ev.target.value)}
+                      style={{width:90,padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,color: '#000'}} autoFocus/>
+                    <button onClick={()=>{
+                      const v=parseInt(editVal);
+                      if(!isNaN(v)&&v>=0) handleSalarySave(e.id, v);
+                      else setEditing(null);
+                    }} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#22c55e",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
+                    <button onClick={()=>setEditing(null)} style={{padding:"4px 8px",borderRadius:6,border:"none",background:"#ef4444",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>×</button>
+                  </div>
+                ) : (
+                  <>
+                    <span style={{fontSize:14,fontWeight:800,color:selectedId===e.id?"#60a5fa":"#3b82f6"}}>{fmt(e.grossSalary)}</span>
+                    <button onClick={()=>{setEditing(e.id);setEditVal(String(e.grossSalary));}} style={{
+                      padding:"2px 8px",borderRadius:5,border:"none",fontSize:11,cursor:"pointer",fontWeight:600,
+                      background:selectedId===e.id?"rgba(255,255,255,0.15)":"#e2e8f0",
+                      color:selectedId===e.id?"#fff":"#475569"
+                    }}>Edit Salary</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+          {employees.length === 0 && <div className="text-sm text-gray-500 italic">No employees found.</div>}
+        </div>
+
+        {/* Detail */}
+        <div style={{flex:1, height:"calc(100vh - 120px)", overflowY:"auto"}}>
+          {!selectedData || !emp ? (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:300,color:"#94a3b8",fontSize:15}}>
+              Select an employee from the directory to view payroll details
+            </div>
+          ) : (<>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div>
+                <div style={{fontSize:22,fontWeight:800,color:"#0f172a"}}>{emp.name}</div>
+                <div style={{fontSize:13,color:"#64748b"}}>{emp.department} · {emp.id}</div>
+              </div>
+              <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,padding:"10px 18px",textAlign:"right"}}>
+                <div style={{fontSize:11,color:"#15803d",fontWeight:700,letterSpacing:"0.08em"}}>GROSS SALARY</div>
+                <div style={{fontSize:20,fontWeight:800,color:"#15803d"}}>{fmt(emp.grossSalary)}</div>
+              </div>
+            </div>
+
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"#94a3b8",marginBottom:10}}>LEAVE BALANCE</div>
+            <div style={{display:"flex",gap:10,marginBottom:24, flexWrap:"wrap"}}>
+              {Object.entries(selectedData.leaveBalances).map(([t,v])=>(
+                <div key={t} style={{flex:1, minWidth:120, background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,padding:"12px 20px",textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:800,color:"#0f172a"}}>{v as number}</div>
+                  <div style={{fontSize:11,color:"#94a3b8",fontWeight:700}}>{t} Balance</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"#94a3b8",marginBottom:10}}>PAYROLL COMPUTATION — PAST 3 MONTHS</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+              {payrolls.map((slip: any,i: number)=>(
+                <div key={i} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:12,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center", flexWrap:"wrap", gap: 16}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:15}}>{MONTH_NAMES[slip.month]} {slip.year}</div>
+                    <div style={{fontSize:12,color:"#64748b",marginTop:3}}>
+                      Present: {slip.present} &nbsp;·&nbsp; Leaves: {slip.cl+slip.sl+slip.el} &nbsp;·&nbsp;
+                      LOP: <span style={{color:slip.lop>0?"#ef4444":"#22c55e",fontWeight:700}}>{slip.lop}</span>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    {slip.lop>0&&(
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:11,color:"#ef4444",fontWeight:700}}>LOP Deduction</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#ef4444"}}>− {fmt(slip.lopDeduction)}</div>
+                      </div>
+                    )}
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:11,color:"#94a3b8",fontWeight:700}}>NET PAY</div>
+                      <div style={{fontSize:18,fontWeight:800,color:"#0f172a"}}>{fmt(slip.netPay)}</div>
+                    </div>
+                    <button onClick={()=>setViewSlip({slip,emp})} style={{padding:"8px 14px",borderRadius:8,border:"none",background:"#0f172a",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                      View Slip
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"#94a3b8",marginBottom:10}}>ATTENDANCE RECORDS</div>
+            <div style={{background:"#f8fafc",borderRadius:12,padding:20,border:"1px solid #e2e8f0"}}>
+              <div className="mb-4 text-sm text-gray-500">Note: Absences without an approved leave request are marked as Absent/LOP.</div>
+              <AttendanceCalendar months={selectedData.attendance}/>
+            </div>
+          </>)}
+        </div>
+      </div>
+
+      {viewSlip&&<SalarySlipModal slip={viewSlip.slip} employee={viewSlip.emp} onClose={()=>setViewSlip(null)}/>}
+    </div>
+  );
 }

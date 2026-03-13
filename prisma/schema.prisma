@@ -19,6 +19,7 @@ model User {
   // Relations
   employee      Employee?
   auditLogs     AuditLog[]
+  exceptionApprovals AttendanceException[] @relation("ExceptionApprover")
   leaveApprovals LeaveRequest[] @relation("LeaveApprover")
 }
 
@@ -40,6 +41,7 @@ model Employee {
   jobTitle       String?
   employmentType String?   // FULL_TIME, PART_TIME, CONTRACT
   workLocation   String?
+  grossSalary    Float?    @default(0)
   
   // Organization Relations
   departmentId   String?
@@ -58,6 +60,7 @@ model Employee {
   reviewsReceived PerformanceReview[] @relation("Reviewee")
   reviewsGiven   PerformanceReview[] @relation("Reviewer")
   payrollRecords PayrollRecord[]
+  attendanceExceptions AttendanceException[]
   
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -256,4 +259,22 @@ model ApiToken {
   scopes    String    @default("read:employees") // Default scope
   createdAt DateTime  @default(now())
   expiresAt DateTime?
+}
+
+// Attendance Exception Requests (punch in/out correction)
+model AttendanceException {
+  id         String   @id @default(cuid())
+  employeeId String
+  date       DateTime
+  reason     String?
+  status     String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  approverId String?
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver   User?    @relation("ExceptionApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, date])
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import DocumentList from "./DocumentList";
+import ProfileActions from "./ProfileActions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -56,11 +57,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
               </h1>
               <p className="text-lg text-gray-500 font-medium mt-1">{employee.jobTitle || 'No Title Assigned'}</p>
             </div>
-            {canEdit && (
-              <button className="px-5 py-2.5 bg-gray-50 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 border border-gray-200 transition-colors shadow-sm">
-                Edit Profile
-              </button>
-            )}
+            <ProfileActions employee={employee} canEdit={canEdit} isAdmin={isAdmin} />
           </div>
 
           <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-4 gap-y-2 text-sm text-gray-600">
